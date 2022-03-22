@@ -14,10 +14,13 @@ def preprocess_feature(f):
         cat_col = 'amenity'
     else:
         return None
+    default_name = None
+    if f['properties'].get(cat_col) == 'toilets':
+        default_name = 'Toilet'
     name_col = 'name_en' if 'name:en' in prop.keys() else 'name'
     return {
         'fid': f['properties']['@id'],
-        'name': f['properties'].get(name_col),
+        'name': f['properties'].get(name_col, default_name),
         'geometry': shape(f['geometry']).centroid, # easier to compute with centroid
         'high_level_category': cat_col,
         'category': f['properties'].get(cat_col),
