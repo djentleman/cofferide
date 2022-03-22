@@ -1,6 +1,4 @@
-from shapely.geometry import shape, LineString
-import geopandas
-import geojson
+from shapely.geometry import LineString
 import polyline
 import json
 from flask import request, Flask
@@ -25,38 +23,6 @@ icons = {
     'toilets': 'https://img.icons8.com/color/344/toilet.png',
     'fast_food': 'https://img.icons8.com/color/344/hamburger.png'
 }
-
-def preprocess_feature(f):
-    prop = f['properties']
-    # useful https://wiki.openstreetmap.org/wiki/Map_features
-    if 'shop' in prop.keys():
-        cat_col = 'shop'
-    elif 'amenity' in prop.keys():
-        cat_col = 'amenity'
-    else:
-        return None
-    name_col = 'name_en' if 'name:en' in prop.keys() else 'name'
-    return {
-        'fid': f['properties']['@id'],
-        'name': f['properties'].get(name_col),
-        'geometry': shape(f['geometry']).centroid, # easier to compute with centroid
-        'high_level_category': cat_col,
-        'category': f['properties'].get(cat_col),
-        'known_bike_parking': f['properties'].get('bicycle_parking', False)
-    }
-
-# NOTE: this was a geojson export of OSM data
-# TODO: replace it with properly curated data
-with open('export.geojson') as f:
-    gj = geojson.load(f)
-features = gj['features']
-
-preprocessed_poi = [preprocess_feature(f) for f in features]
-preprocessed_poi = [p for p in preprocessed_poi if p is not None]
-gdf = geopandas.GeoDataFrame(preprocessed_poi)
-gdf = gdf[~gdf.name.isna()]
-gdf = gdf[gdf.category.isin(target_categories)]
-
 
 def pluralize(s):
     if s[-1] == s:
