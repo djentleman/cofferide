@@ -3,40 +3,19 @@ import polyline
 import json
 from flask import request, Flask
 from flask_cors import CORS, cross_origin
+from data.poi.preprocessor import target_categories
+from data_handler import fetch_data
+from helpers import meters_to_lat_lng, lat_lng_to_meters, icons, pluralize, depluralize
 
 app = Flask(__name__)
 CORS(app, support_credentials=True)
 
 
-# very bad code
-# a wise man once said: "Don't try to do any analysis in Alaska"
-meters_to_lat_lng = lambda x: x*111132.954
-lat_lng_to_meters = lambda x: x/111132.954
-
-target_categories = ['restaurant', 'cafe', 'fast_food', 'convenience', 'toilets', 'place_of_worship']
-
-icons = {
-    'cafe': 'https://img.icons8.com/color/344/cafe--v1.png',
-    'restaurant': 'https://img.icons8.com/color/344/dining-room.png',
-    'convenience': 'https://img.icons8.com/color/344/grocery-store.png',
-    'place_of_worship': 'https://img.icons8.com/color/344/torii.png',
-    'toilets': 'https://img.icons8.com/color/344/toilet.png',
-    'fast_food': 'https://img.icons8.com/color/344/hamburger.png'
-}
-
-def pluralize(s):
-    if s[-1] == s:
-        return s
-    return f'{s}s'
-
-def depluralize(s):
-    if s[-1] == s:
-        return s[:-1]
-    return s
-
 app = Flask(__name__)
 cors = CORS(app)
 app.config['CORS_HEADERS'] = 'application/json'
+
+gdf = fetch_data()
 
 
 @app.route('/get_poi')
