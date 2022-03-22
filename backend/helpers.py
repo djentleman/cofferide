@@ -23,3 +23,5 @@ def depluralize(s):
         return s[:-1]
     return s
 
+def transponse(x):
+    return list(map(lambda x: [x[1], x[0]], x))

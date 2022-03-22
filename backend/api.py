@@ -1,3 +1,4 @@
+import os
 from shapely.geometry import LineString
 import polyline
 import json
@@ -5,10 +6,14 @@ from flask import request, Flask
 from flask_cors import CORS, cross_origin
 from data.poi.preprocessor import target_categories
 from data_handler import fetch_data
-from helpers import meters_to_lat_lng, lat_lng_to_meters, icons, pluralize, depluralize
+from helpers import meters_to_lat_lng, lat_lng_to_meters, icons, pluralize, depluralize, transponse
+
+
 
 app = Flask(__name__)
 CORS(app, support_credentials=True)
+
+MAPBOX_API_KEY = os.environ.get('MAPBOX_API_KEY')
 
 
 app = Flask(__name__)
@@ -16,6 +21,12 @@ cors = CORS(app)
 app.config['CORS_HEADERS'] = 'application/json'
 
 gdf = fetch_data()
+
+@app.route('/get_mapbox_key')
+@cross_origin(supports_credentials=True)
+def get_mapbox_api():
+    return MAPBOX_API_KEY
+
 
 
 @app.route('/get_poi')
@@ -25,6 +36,9 @@ def get_poi():
     gpx = request.args.get('gpx')
     # decode
     coords = polyline.decode(gpx)
+    # these are lat, lng, we need lng, lat
+    coords = transponse(coords)
+    # GIS time
     ls = LineString(coords)
     area_of_interest = ls.buffer(lat_lng_to_meters(100))
     relevant_poi = gdf[gdf.intersects(area_of_interest)]

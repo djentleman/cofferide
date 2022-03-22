@@ -1,129 +1,169 @@
 <!DOCTYPE html>
 <html>
-<head>
-<meta charset="utf-8">
-<title>Add a line to a map using a GeoJSON source</title>
-<meta name="viewport" content="initial-scale=1,maximum-scale=1,user-scalable=no">
-<link href="https://api.mapbox.com/mapbox-gl-js/v2.7.0/mapbox-gl.css" rel="stylesheet">
-<script src="https://api.mapbox.com/mapbox-gl-js/v2.7.0/mapbox-gl.js"></script>
-<script src="//code.jquery.com/jquery-1.12.1.min.js"></script>
-<style>
-body { margin: 0; padding: 0; }
-#map { position: absolute; top: 0; bottom: 0; width: 100%; }
-</style>
-</head>
-<body>
-<div>
-	Hello!
-	Upload GPX file:
-</div>
-<div id="map"></div>
-<script>
+	<head>
+		<meta charset="utf-8">
+		<title>Add a line to a map using a GeoJSON source</title>
+		<meta name="viewport" content="initial-scale=1,maximum-scale=1,user-scalable=no">
+		<link href="https://api.mapbox.com/mapbox-gl-js/v2.7.0/mapbox-gl.css" rel="stylesheet">
+		<script src="https://api.mapbox.com/mapbox-gl-js/v2.7.0/mapbox-gl.js"></script>
+		<script src="util/GPXParser.min.js"></script>
+		<script src="util/polyline.js"></script>
+		<link rel="stylesheet" href="main.css">
+	</head>
+	<body>
+		<div class='sidebar bar-block'  style="width:25%">
+			Upload GPX file:
+			<input id="fileupload" type="file" name="fileupload" />
+			<button id="upload-button"> Upload </button>
+		</div>
+		<div id="map"></div>
+		<script>
+			var base_url = 'http://127.0.0.1:5000';
 
-
-
-// mapbox seems to suck cock, i want to rewrite this in leaflet
-
-mapboxgl.accessToken = 'xxxx';
-
-// init geojson files
-const map = new mapboxgl.Map({
-	container: 'map',
-	style: 'mapbox://styles/mapbox/streets-v11',
-	center: [139.29082967994404, 35.47802228742353],
-	zoom: 10
-});
-
-// url is made using a polyline
-
-map.on('load', () => {
-	console.log('loaded map')
-	fetch(url).then(response => response.json()).then(metadata => {
-		console.log(metadata);
-		Promise.all(
-		    metadata.map(img => new Promise((resolve, reject) => {
-			map.loadImage(img.icon, function (error, res) {
-			    map.addImage(img.name, res)
-			    console.log('img added')
-			    resolve();
-			})
-		    }))
-		).then(() => {
-			console.log('loaded images')
-			metadata.map(poi => {
-				console.log(poi)
-				map.addSource(poi.name, {
+			function load_route(map, route_geojson) {
+				map.addSource('route', {
 					'type': 'geojson',
-					'data': poi.source,
+					'data': route_geojson,
 					'generateId': true
 				});
 				map.addLayer({
-					'id': poi.series,
-					'type': 'symbol',
-					'source': poi.name,
+					'id': 'route',
+					'type': 'line',
+					'source': 'route',
 					'layout': {
-						'icon-image': poi.name,
-						'icon-size': 0.1,
-						'icon-allow-overlap': true,
-						'icon-ignore-placement': true,   
+						'line-join': 'round',
+						'line-cap': 'round'
 					},
+					'paint': {
+						'line-color': '#FF5F1F',
+						'line-width': 4
+					}
 				});
-				map.on('mouseenter', poi.series, (e) => {
-					// Change the cursor style as a UI indicator.
-					map.getCanvas().style.cursor = 'pointer';
+				centroid = route_geojson.geometry.coordinates.reduce((x, y) => { return [x[0] + y[0], x[1] + y[1]] } ).map(x => {return x / route_geojson.geometry.coordinates.length})
+				map.flyTo({
+						center: centroid
+				})
+			}
 
-					// Copy coordinates array.
-					const coordinates = e.features[0].geometry.coordinates.slice();
-					const description = poi.name + '<br>' + e.features[0].properties.name;
+			function load_poi(map, url) {
+				console.log(url)
+				fetch(url).then(response => response.json()).then(metadata => {
+					console.log(metadata);
+					Promise.all(
+					    metadata.map(img => new Promise((resolve, reject) => {
+						map.loadImage(img.icon, function (error, res) {
+						    map.addImage(img.name, res)
+						    console.log('img added')
+						    resolve();
+						})
+					    }))
+					).then(() => {
+						console.log('loaded images')
+						metadata.map(poi => {
+							console.log(poi)
+							map.addSource(poi.name, {
+								'type': 'geojson',
+								'data': poi.source,
+								'generateId': true
+							});
+							map.addLayer({
+								'id': poi.series,
+								'type': 'symbol',
+								'source': poi.name,
+								'layout': {
+									'icon-image': poi.name,
+									'icon-size': 0.1,
+									'icon-allow-overlap': true,
+									'icon-ignore-placement': true,   
+								},
+							});
+							map.on('mouseenter', poi.series, (e) => {
+								// Change the cursor style as a UI indicator.
+								map.getCanvas().style.cursor = 'pointer';
 
-					// Ensure that if the map is zoomed out such that multiple
-					// copies of the feature are visible, the popup appears
-					// over the copy being pointed to.
-					while (Math.abs(e.lngLat.lng - coordinates[0]) > 180) {
-						coordinates[0] += e.lngLat.lng > coordinates[0] ? 360 : -360;
+								// Copy coordinates array.
+								const coordinates = e.features[0].geometry.coordinates.slice();
+								const description = poi.name + '<br>' + e.features[0].properties.name;
+
+								// Ensure that if the map is zoomed out such that multiple
+								// copies of the feature are visible, the popup appears
+								// over the copy being pointed to.
+								while (Math.abs(e.lngLat.lng - coordinates[0]) > 180) {
+									coordinates[0] += e.lngLat.lng > coordinates[0] ? 360 : -360;
+								}
+
+								// Populate the popup and set its coordinates
+								// based on the feature found.
+								popup.setLngLat(coordinates).setHTML(description).addTo(map);
+							});
+
+							map.on('mouseleave', poi.series, () => {
+								map.getCanvas().style.cursor = '';
+								popup.remove();
+							});
+						})
+					});
+
+
+				});
+			}
+
+
+			fetch(base_url + '/get_mapbox_key').then(resp => resp.text()).then(resp => {
+				mapboxgl.accessToken = resp;
+			}).then(() => {
+
+				
+				// init geojson files
+				const map = new mapboxgl.Map({
+					container: 'map',
+					style: 'mapbox://styles/mapbox/streets-v11',
+					center: [139.29082967994404, 35.47802228742353],
+					zoom: 10
+				});
+
+
+
+
+
+				// url is made using a polyline
+
+				map.on('load', () => {
+
+					function read() {
+						var file = fileupload.files.item(0);
+						var reader = new FileReader();
+						var gpx = new gpxParser();
+
+
+						reader.onload = function() {
+
+							// TODO: clear out old map data
+
+							gpx.parse(reader.result);
+							route_geojson = gpx.toGeoJSON().features[0];
+							ply = polyline.fromGeoJSON(route_geojson)
+
+							load_route(map, route_geojson)
+
+
+							// do api call to update other map data here
+							url = encodeURI(base_url + '/get_poi?gpx=' + ply)
+							load_poi(map, url)
+
+						}
+
+						reader.readAsText(file);
 					}
 
-					// Populate the popup and set its coordinates
-					// based on the feature found.
-					popup.setLngLat(coordinates).setHTML(description).addTo(map);
+					document.querySelector("#upload-button").addEventListener('click', async function() {
+						read()
+					})
+
 				});
-
-				map.on('mouseleave', poi.series, () => {
-					map.getCanvas().style.cursor = '';
-					popup.remove();
-				});
-			})
-		});
-
-		map.addSource('route', {
-			'type': 'geojson',
-			'data': 'route.geojson',
-			'generateId': true
-		});
-		map.addLayer({
-			'id': 'route',
-			'type': 'line',
-			'source': 'route',
-			'layout': {
-				'line-join': 'round',
-				'line-cap': 'round'
-			},
-			'paint': {
-				'line-color': '#FF5F1F',
-				'line-width': 8
-			}
-		});
-
-		const popup = new mapboxgl.Popup({
-			closeButton: false,
-			closeOnClick: false
-		});
-
-	});
-});
+			});
 
 
-</script>
-
-</body>
+		</script>
+	</body>
 </html>
